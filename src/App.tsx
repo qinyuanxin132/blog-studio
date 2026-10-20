@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { ClipboardEvent as ReactClipboardEvent, DragEvent as ReactDragEvent, FormEvent } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import './App.css'
@@ -208,6 +208,26 @@ function App() {
     updateBody(nextBody)
     requestAnimationFrame(() => { editor.focus(); editor.setSelectionRange(start + text.length, start + text.length) })
   }
+  const importImageFile = async (file: File) => {
+    if (!repoPath || !selected?.path || !(window as any).__TAURI_INTERNALS__) { setMessage('请先在桌面应用中打开本地博客仓库'); return }
+    try {
+      const data = Array.from(new Uint8Array(await file.arrayBuffer()))
+      const relative = await invoke<string>('write_image_bytes', { repo: repoPath, filename: file.name, data })
+      const markdown = `![图片](${relative})`
+      if (editorMode === 'visual') visualFormat('insertImage', relative)
+      else insertMarkdown(markdown)
+      setMessage(`已导入图片：${relative}`)
+    } catch (error) { setMessage(`图片导入失败：${String(error)}`) }
+  }
+  const handlePaste = (event: ReactClipboardEvent<HTMLElement>) => {
+    const image = Array.from(event.clipboardData.files).find((file) => file.type.startsWith('image/'))
+    if (image) { event.preventDefault(); void importImageFile(image) }
+  }
+  const handleDrop = (event: ReactDragEvent<HTMLElement>) => {
+    event.preventDefault()
+    const image = Array.from(event.dataTransfer.files).find((file) => file.type.startsWith('image/'))
+    if (image) void importImageFile(image)
+  }
   const insertImage = async () => {
     if (!repoPath || !selected?.path || !(window as any).__TAURI_INTERNALS__) { setMessage('请先在桌面应用中打开本地博客仓库'); return }
     const source = await open({ multiple: false, directory: false, title: '选择要插入的图片', filters: [{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] }] })
@@ -252,7 +272,7 @@ function App() {
           <button title="无序列表" onClick={() => editorMode === 'visual' ? visualFormat('insertUnorderedList') : formatSelection('- ')}>☷</button><button title="引用" onClick={() => editorMode === 'visual' ? visualFormat('formatBlock', 'blockquote') : formatSelection('> ')}>❯</button><button title="代码块" onClick={() => formatSelection('```\n', '\n```')}>▣</button><button title="插入图片" onClick={insertImage}>▧ 图片</button>
         </div>
         <div className={`workbench ${preview ? '' : 'single'}`}>
-          {editorMode === 'visual' ? <div ref={visualEditorRef} className="markdown-editor visual-editor" contentEditable suppressContentEditableWarning dangerouslySetInnerHTML={{ __html: visualHtml }} onInput={visualInput} aria-label="可视化文章编辑器" /> : <textarea ref={editorRef} className="markdown-editor" value={selected?.body ?? ''} onChange={(event) => updateBody(event.target.value)} spellCheck={false} aria-label="Markdown 编辑器" />}
+          {editorMode === 'visual' ? <div ref={visualEditorRef} className="markdown-editor visual-editor" contentEditable suppressContentEditableWarning dangerouslySetInnerHTML={{ __html: visualHtml }} onInput={visualInput} onPaste={handlePaste} onDrop={handleDrop} onDragOver={(event) => event.preventDefault()} aria-label="可视化文章编辑器" /> : <textarea ref={editorRef} className="markdown-editor" value={selected?.body ?? ''} onChange={(event) => updateBody(event.target.value)} onPaste={handlePaste} onDrop={handleDrop} onDragOver={(event) => event.preventDefault()} spellCheck={false} aria-label="Markdown 编辑器" />}
           {preview && <article className="markdown-preview" dangerouslySetInnerHTML={{ __html: renderMarkdown(selected?.body ?? '') }} />}
         </div>
       </main>

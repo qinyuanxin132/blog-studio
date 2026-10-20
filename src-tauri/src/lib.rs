@@ -91,6 +91,25 @@ mod commands {
   }
 
   #[tauri::command]
+  pub fn write_image_bytes(repo: String, filename: String, data: Vec<u8>) -> Result<String, String> {
+    let source_name = Path::new(filename.trim()).file_name().and_then(|name| name.to_str()).ok_or("图片文件名无效")?;
+    let extension = Path::new(source_name).extension().and_then(|ext| ext.to_str()).unwrap_or("").to_ascii_lowercase();
+    if !["png", "jpg", "jpeg", "gif", "webp", "svg"].contains(&extension.as_str()) { return Err("只支持 PNG/JPG/GIF/WebP/SVG 图片".into()); }
+    let repo_root = Path::new(&repo);
+    let asset_dir = if repo_root.join("src/content/attachments/upload").is_dir() { repo_root.join("src/content/attachments/upload") }
+      else if repo_root.join("attachments/upload").is_dir() { repo_root.join("attachments/upload") }
+      else { repo_root.join("public/upload") };
+    fs::create_dir_all(&asset_dir).map_err(|error| error.to_string())?;
+    let mut target = asset_dir.join(source_name);
+    if target.exists() {
+      let stamp = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|error| error.to_string())?.as_secs();
+      target = asset_dir.join(format!("{stamp}-{source_name}"));
+    }
+    fs::write(&target, data).map_err(|error| error.to_string())?;
+    Ok(format!("../attachments/upload/{}", target.file_name().unwrap().to_string_lossy()))
+  }
+
+  #[tauri::command]
   pub fn git_snapshot(repo: String) -> Result<GitSnapshot, String> {
     Ok(GitSnapshot {
       branch: run_git(&repo, &["branch", "--show-current"] )?,
@@ -141,7 +160,7 @@ pub fn run() {
       Ok(())
     })
     .invoke_handler(tauri::generate_handler![
-      commands::read_posts, commands::write_post, commands::copy_image, commands::git_snapshot, commands::git_diff,
+      commands::read_posts, commands::write_post, commands::copy_image, commands::write_image_bytes, commands::git_snapshot, commands::git_diff,
       commands::git_commit, commands::git_remote, commands::git_set_remote, commands::git_pull, commands::git_push
     ])
     .run(tauri::generate_context!())
