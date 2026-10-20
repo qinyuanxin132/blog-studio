@@ -4,24 +4,29 @@ import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import './App.css'
 
-type Post = { id: string; title: string; status: 'draft' | 'published'; updated: string; body: string; path?: string; fileHandle?: any }
+type Post = { id: string; title: string; status: 'draft' | 'published'; updated: string; body: string; path?: string; fileHandle?: any; date?: string; category?: string; tags?: string }
 
 type DirectoryHandle = any
 
 type EditorMode = 'markdown' | 'visual'
 
 const initialPosts: Post[] = [
-  { id: 'assembly', title: '西电CTF 2026 Assembly', status: 'published', updated: '2026-09-23', body: '# 西电CTF 2026 Assembly\n\n记录汇编语言学习与逆向分析过程。\n\n## 通用寄存器\n\n从能看懂教程 AI 写的开始。' },
-  { id: 'reverse', title: '逆向学习手记 #3 经验杂谈', status: 'published', updated: '2026-10-11', body: '# 逆向学习手记 #3 经验杂谈\n\n把遇到的问题写下来，留给下次阅读。' },
+  { id: 'assembly', title: '西电CTF 2026 Assembly', status: 'published', updated: '2026-09-23', date: '2026-09-23', category: '西电CTF_2026', tags: 'Assembly, Reverse', body: '# 西电CTF 2026 Assembly\n\n记录汇编语言学习与逆向分析过程。\n\n## 通用寄存器\n\n从能看懂教程 AI 写的开始。' },
+  { id: 'reverse', title: '逆向学习手记 #3 经验杂谈', status: 'published', updated: '2026-10-11', date: '2026-10-11', category: '逆向入门', tags: 'Reverse', body: '# 逆向学习手记 #3 经验杂谈\n\n把遇到的问题写下来，留给下次阅读。' },
   { id: 'new', title: '未命名草稿', status: 'draft', updated: '刚刚', body: '# 未命名草稿\n\n从这里开始写……' },
 ]
 
 function parsePost(path: string, body: string, fileHandle: any): Post {
   const titleFromMeta = body.match(/^title:\s*["']?(.+?)["']?\s*$/m)?.[1]
   const titleFromBody = body.match(/^#\s+(.+)$/m)?.[1]
+  const date = body.match(/^date:\s*["']?(.+?)["']?\s*$/m)?.[1]
+  const category = body.match(/^(?:category|categories):\s*\[?"?'?([^\]\n,"']+)/m)?.[1]?.trim()
+  const tags = body.match(/^tags:\s*\[?([^\]\n]+)\]?/m)?.[1]?.replace(/["']/g, '').trim()
   const published = !/^published:\s*false\s*$/m.test(body)
-  return { id: path, path, fileHandle, title: titleFromMeta ?? titleFromBody ?? path.split('/').pop() ?? '未命名文章', status: published ? 'published' : 'draft', updated: '本地文件', body }
+  return { id: path, path, fileHandle, title: titleFromMeta ?? titleFromBody ?? path.split('/').pop() ?? '未命名文章', status: published ? 'published' : 'draft', updated: date ?? '本地文件', date, category, tags, body }
 }
+
+const sortPosts = (items: Post[]) => [...items].sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))
 
 async function directoryAt(root: DirectoryHandle, parts: string[]) {
   let current = root
@@ -85,6 +90,20 @@ function htmlToMarkdown(html: string) {
   return root ? [...root.childNodes].map(convert).join('').replace(/\\n{3,}/g, '\\n\\n').trim() + '\\n' : ''
 }
 
+function updateFrontmatter(body: string, key: string, value: string) {
+  const line = `${key}: ${value}`
+  if (body.startsWith('---\\n')) {
+    const end = body.indexOf('\\n---', 4)
+    if (end >= 0) {
+      const frontmatter = body.slice(4, end)
+      const pattern = new RegExp(`^${key}:.*$`, 'm')
+      const next = pattern.test(frontmatter) ? frontmatter.replace(pattern, line) : `${frontmatter}\\n${line}`
+      return `---\\n${next}\\n---${body.slice(end + 5)}`
+    }
+  }
+  return `---\\n${line}\\npublished: true\\n---\\n\\n${body}`
+}
+
 function App() {
   const [posts, setPosts] = useState<Post[]>(() => {
     const saved = localStorage.getItem('blog-studio-demo-posts')
@@ -104,7 +123,7 @@ function App() {
   const visualEditorRef = useRef<HTMLDivElement>(null)
   const [editorMode, setEditorMode] = useState<EditorMode>('markdown')
   const [visualHtml, setVisualHtml] = useState('')
-  const filtered = useMemo(() => posts.filter((post) => post.title.toLowerCase().includes(query.toLowerCase())), [posts, query])
+  const filtered = useMemo(() => sortPosts(posts.filter((post) => `${post.title} ${post.category ?? ''} ${post.tags ?? ''}`.toLowerCase().includes(query.toLowerCase()))), [posts, query])
 
   useEffect(() => { if (!repo) localStorage.setItem('blog-studio-demo-posts', JSON.stringify(posts)) }, [posts, repo])
 
@@ -125,7 +144,7 @@ function App() {
         const loaded = await invoke<Array<{ path: string; body: string }>>('read_posts', { repo: selected })
         if (!loaded.length) { setMessage('没有找到 Markdown 文章'); return }
         const nativePosts = loaded.map((post) => parsePost(post.path, post.body, null))
-        setRepoPath(selected); setRepoName(selected.split(/[\\/]/).pop() ?? selected); setPosts(nativePosts); setSelectedId(nativePosts[0].id)
+        const sortedPosts = sortPosts(nativePosts); setRepoPath(selected); setRepoName(selected.split(/[\\/]/).pop() ?? selected); setPosts(sortedPosts); setSelectedId(sortedPosts[0].id)
         await refreshGit(selected); setMessage(`已读取 ${loaded.length} 篇文章`)
         return
       }
@@ -135,13 +154,21 @@ function App() {
       const { directory, prefix } = await openPostsDirectory(handle)
       const loaded = await readMarkdownFiles(directory, prefix)
       if (!loaded.length) { setMessage('没有找到 Markdown 文章'); return }
-      setRepo(handle); setRepoName(handle.name); setPosts(loaded); setSelectedId(loaded[0].id); setMessage(`已读取 ${loaded.length} 篇文章`)
+      const sortedPosts = sortPosts(loaded); setRepo(handle); setRepoName(handle.name); setPosts(sortedPosts); setSelectedId(sortedPosts[0].id); setMessage(`已读取 ${loaded.length} 篇文章`)
     } catch (error) {
       if ((error as Error).name !== 'AbortError') setMessage('打开仓库失败，请检查权限')
     }
   }
 
   const updateBody = (body: string) => setPosts((items) => items.map((post) => post.id === selected?.id ? { ...post, body, updated: '未保存修改' } : post))
+  const updateMetadata = (field: 'title' | 'date' | 'category' | 'tags', value: string) => {
+    if (!selected) return
+    const key = field === 'category' ? 'categories' : field
+    const safe = value.replace(/"/g, '\\"')
+    const serialized = field === 'title' ? `"${safe}"` : field === 'category' ? `["${safe}"]` : field === 'tags' ? `[${value.split(',').map((tag) => `"${tag.trim().replace(/"/g, '\\"')}"`).filter(Boolean).join(', ')}]` : value
+    const body = updateFrontmatter(selected.body, key, serialized)
+    setPosts((items) => items.map((post) => post.id === selected.id ? { ...post, body, [field]: value, updated: '未保存修改' } : post))
+  }
   const saveSelected = async () => {
     if (!selected) return
     try {
@@ -261,10 +288,16 @@ function App() {
         <div className="sidebar-top"><span>文章</span><button className="new-button" onClick={newPost}>＋ 新建</button></div>
         <input className="post-filter" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索文章…" />
         <div className="post-count">{filtered.length} / {posts.length} 篇</div>
-        <div className="post-items">{filtered.map((post) => <button key={post.id} className={`post-item ${post.id === selected?.id ? 'selected' : ''}`} onClick={() => setSelectedId(post.id)}><span className="post-item-title">{post.title}</span><span><i className={post.status} />{post.updated}</span></button>)}</div>
+        <div className="post-items">{filtered.map((post) => <button key={post.id} className={`post-item ${post.id === selected?.id ? 'selected' : ''}`} onClick={() => setSelectedId(post.id)}><span className="post-item-title">{post.title}</span><span><i className={post.status} />{post.date ?? post.updated}</span>{post.category && <small>{post.category}</small>}</button>)}</div>
       </aside>
       <main className="editor-area">
         <div className="editor-toolbar"><div><span className="crumb">{selected?.path ?? '本地草稿'}</span><strong>{selected?.title}</strong></div><div className="toolbar-actions"><span className="saved">● {message}{gitSnapshot?.branch ? ` · ${gitSnapshot.branch}` : ''}</span><button onClick={() => setPreview(!preview)}>{preview ? '隐藏预览' : '显示预览'}</button><button onClick={saveSelected}>保存本地</button><button onClick={() => refreshGit()}>Git 状态</button><button onClick={loadRemote}>远程</button><button onClick={connectRemote}>连接 GitHub</button><button onClick={commitLocal}>本地 commit</button><button onClick={pullRemote}>拉取</button><button className="publish" onClick={pushRemote}>确认上传</button></div></div>
+        <div className="metadata-bar" aria-label="文章信息">
+          <label>标题<input value={selected?.title ?? ''} onChange={(event) => updateMetadata('title', event.target.value)} /></label>
+          <label>日期<input type="date" value={selected?.date ?? ''} onChange={(event) => updateMetadata('date', event.target.value)} /></label>
+          <label>分类<input placeholder="如：逆向工程" value={selected?.category ?? ''} onChange={(event) => updateMetadata('category', event.target.value)} /></label>
+          <label>标签<input placeholder="逗号分隔" value={selected?.tags ?? ''} onChange={(event) => updateMetadata('tags', event.target.value)} /></label>
+        </div>
         <div className="editor-tools" aria-label="格式工具栏">
           <button className="mode-toggle" onClick={editorMode === 'markdown' ? enterVisualMode : leaveVisualMode}>{editorMode === 'markdown' ? '可视化编辑' : 'Markdown 源码'}</button><span />
           <button title="一级标题" onClick={() => editorMode === 'visual' ? visualFormat('formatBlock', 'h1') : formatSelection('# ')}>H1</button><button title="二级标题" onClick={() => editorMode === 'visual' ? visualFormat('formatBlock', 'h2') : formatSelection('## ')}>H2</button><span />
