@@ -32,6 +32,7 @@ pnpm exec tauri build --bundles deb,rpm
 - 修改后写回本地 Markdown 文件；
 - Tauri 原生目录选择；
 - Git 状态、diff 统计和本地 commit；
+- 连接或修改 `origin` GitHub 远程地址；
 - 读取远程地址；
 - 用户确认后的 pull；
 - 用户确认后的 push 到 GitHub。
