@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { FormEvent } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import './App.css'
@@ -6,6 +7,8 @@ import './App.css'
 type Post = { id: string; title: string; status: 'draft' | 'published'; updated: string; body: string; path?: string; fileHandle?: any }
 
 type DirectoryHandle = any
+
+type EditorMode = 'markdown' | 'visual'
 
 const initialPosts: Post[] = [
   { id: 'assembly', title: '西电CTF 2026 Assembly', status: 'published', updated: '2026-09-23', body: '# 西电CTF 2026 Assembly\n\n记录汇编语言学习与逆向分析过程。\n\n## 通用寄存器\n\n从能看懂教程 AI 写的开始。' },
@@ -55,6 +58,32 @@ function renderMarkdown(source: string) {
     .split(/\n{2,}/).map((block) => block.startsWith('<h') ? block : `<p>${block.replace(/\n/g, '<br />')}</p>`).join('')
 }
 
+function htmlToMarkdown(html: string) {
+  const document = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html')
+  const root = document.body.firstElementChild
+  const convert = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? ''
+    if (!(node instanceof HTMLElement)) return [...node.childNodes].map(convert).join('')
+    const content = [...node.childNodes].map(convert).join('')
+    switch (node.tagName.toLowerCase()) {
+      case 'h1': return `# ${content.trim()}\\n\\n`
+      case 'h2': return `## ${content.trim()}\\n\\n`
+      case 'h3': return `### ${content.trim()}\\n\\n`
+      case 'strong': case 'b': return `**${content}**`
+      case 'em': case 'i': return `*${content}*`
+      case 'code': return node.parentElement?.tagName.toLowerCase() === 'pre' ? content : `\`${content}\``
+      case 'pre': return '\n```\n' + (node.textContent ?? '') + '\n```\n\n'
+      case 'br': return '\\n'
+      case 'blockquote': return content.trim().split('\\n').map((line) => `> ${line}`).join('\\n') + '\\n\\n'
+      case 'li': return `- ${content.trim()}\\n`
+      case 'ul': case 'ol': return `\\n${content}\\n`
+      case 'p': return `${content.trim()}\\n\\n`
+      default: return content
+    }
+  }
+  return root ? [...root.childNodes].map(convert).join('').replace(/\\n{3,}/g, '\\n\\n').trim() + '\\n' : ''
+}
+
 function App() {
   const [posts, setPosts] = useState<Post[]>(() => {
     const saved = localStorage.getItem('blog-studio-demo-posts')
@@ -71,6 +100,9 @@ function App() {
   const [message, setMessage] = useState('离线模式')
   const selected = posts.find((post) => post.id === selectedId) ?? posts[0]
   const editorRef = useRef<HTMLTextAreaElement>(null)
+  const visualEditorRef = useRef<HTMLDivElement>(null)
+  const [editorMode, setEditorMode] = useState<EditorMode>('markdown')
+  const [visualHtml, setVisualHtml] = useState('')
   const filtered = useMemo(() => posts.filter((post) => post.title.toLowerCase().includes(query.toLowerCase())), [posts, query])
 
   useEffect(() => { if (!repo) localStorage.setItem('blog-studio-demo-posts', JSON.stringify(posts)) }, [posts, repo])
@@ -162,6 +194,10 @@ function App() {
     const post: Post = { id: `draft-${Date.now()}`, title: '未命名草稿', status: 'draft', updated: '未保存修改', body: '# 未命名草稿\n\n' }
     setPosts((items) => [post, ...items]); setSelectedId(post.id); setMessage('新建本地草稿')
   }
+  const enterVisualMode = () => { setVisualHtml(renderMarkdown(selected?.body ?? '')); setEditorMode('visual') }
+  const leaveVisualMode = () => { updateBody(htmlToMarkdown(visualEditorRef.current?.innerHTML ?? visualHtml)); setEditorMode('markdown') }
+  const visualInput = (event: FormEvent<HTMLDivElement>) => { const html = event.currentTarget.innerHTML; setVisualHtml(html); updateBody(htmlToMarkdown(html)) }
+  const visualFormat = (command: string, value?: string) => { visualEditorRef.current?.focus(); document.execCommand(command, false, value); if (visualEditorRef.current) visualInput({ currentTarget: visualEditorRef.current } as FormEvent<HTMLDivElement>) }
   const formatSelection = (before: string, after = '') => {
     const editor = editorRef.current
     if (!editor || !selected) return
@@ -188,12 +224,13 @@ function App() {
       <main className="editor-area">
         <div className="editor-toolbar"><div><span className="crumb">{selected?.path ?? '本地草稿'}</span><strong>{selected?.title}</strong></div><div className="toolbar-actions"><span className="saved">● {message}{gitSnapshot?.branch ? ` · ${gitSnapshot.branch}` : ''}</span><button onClick={() => setPreview(!preview)}>{preview ? '隐藏预览' : '显示预览'}</button><button onClick={saveSelected}>保存本地</button><button onClick={() => refreshGit()}>Git 状态</button><button onClick={loadRemote}>远程</button><button onClick={connectRemote}>连接 GitHub</button><button onClick={commitLocal}>本地 commit</button><button onClick={pullRemote}>拉取</button><button className="publish" onClick={pushRemote}>确认上传</button></div></div>
         <div className="editor-tools" aria-label="格式工具栏">
-          <button title="一级标题" onClick={() => formatSelection('# ')}>H1</button><button title="二级标题" onClick={() => formatSelection('## ')}>H2</button><span />
-          <button title="粗体" onClick={() => formatSelection('**', '**')}><strong>B</strong></button><button title="斜体" onClick={() => formatSelection('*', '*')}><em>I</em></button><button title="行内代码" onClick={() => formatSelection('`', '`')}>⌘</button><span />
-          <button title="无序列表" onClick={() => formatSelection('- ')}>☷</button><button title="引用" onClick={() => formatSelection('> ')}>❯</button><button title="代码块" onClick={() => formatSelection('```\n', '\n```')}>▣</button>
+          <button className="mode-toggle" onClick={editorMode === 'markdown' ? enterVisualMode : leaveVisualMode}>{editorMode === 'markdown' ? '可视化编辑' : 'Markdown 源码'}</button><span />
+          <button title="一级标题" onClick={() => editorMode === 'visual' ? visualFormat('formatBlock', 'h1') : formatSelection('# ')}>H1</button><button title="二级标题" onClick={() => editorMode === 'visual' ? visualFormat('formatBlock', 'h2') : formatSelection('## ')}>H2</button><span />
+          <button title="粗体" onClick={() => editorMode === 'visual' ? visualFormat('bold') : formatSelection('**', '**')}><strong>B</strong></button><button title="斜体" onClick={() => editorMode === 'visual' ? visualFormat('italic') : formatSelection('*', '*')}><em>I</em></button><button title="行内代码" onClick={() => formatSelection('`', '`')}>⌘</button><span />
+          <button title="无序列表" onClick={() => editorMode === 'visual' ? visualFormat('insertUnorderedList') : formatSelection('- ')}>☷</button><button title="引用" onClick={() => editorMode === 'visual' ? visualFormat('formatBlock', 'blockquote') : formatSelection('> ')}>❯</button><button title="代码块" onClick={() => formatSelection('```\n', '\n```')}>▣</button>
         </div>
         <div className={`workbench ${preview ? '' : 'single'}`}>
-          <textarea ref={editorRef} className="markdown-editor" value={selected?.body ?? ''} onChange={(event) => updateBody(event.target.value)} spellCheck={false} aria-label="Markdown 编辑器" />
+          {editorMode === 'visual' ? <div ref={visualEditorRef} className="markdown-editor visual-editor" contentEditable suppressContentEditableWarning dangerouslySetInnerHTML={{ __html: visualHtml }} onInput={visualInput} aria-label="可视化文章编辑器" /> : <textarea ref={editorRef} className="markdown-editor" value={selected?.body ?? ''} onChange={(event) => updateBody(event.target.value)} spellCheck={false} aria-label="Markdown 编辑器" />}
           {preview && <article className="markdown-preview" dangerouslySetInnerHTML={{ __html: renderMarkdown(selected?.body ?? '') }} />}
         </div>
       </main>
