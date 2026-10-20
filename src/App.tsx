@@ -92,16 +92,16 @@ function htmlToMarkdown(html: string) {
 
 function updateFrontmatter(body: string, key: string, value: string) {
   const line = `${key}: ${value}`
-  if (body.startsWith('---\\n')) {
-    const end = body.indexOf('\\n---', 4)
+  if (body.startsWith('---\n')) {
+    const end = body.indexOf('\n---', 4)
     if (end >= 0) {
       const frontmatter = body.slice(4, end)
       const pattern = new RegExp(`^${key}:.*$`, 'm')
-      const next = pattern.test(frontmatter) ? frontmatter.replace(pattern, line) : `${frontmatter}\\n${line}`
-      return `---\\n${next}\\n---${body.slice(end + 5)}`
+      const next = pattern.test(frontmatter) ? frontmatter.replace(pattern, line) : `${frontmatter}\n${line}`
+      return `---\n${next}\n---${body.slice(end + 5)}`
     }
   }
-  return `---\\n${line}\\npublished: true\\n---\\n\\n${body}`
+  return `---\n${line}\npublished: true\n---\n\n${body}`
 }
 
 function App() {
