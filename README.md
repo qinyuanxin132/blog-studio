@@ -20,6 +20,9 @@ npm run dev
 - 本地 LocalStorage 保存；
 - 离线状态展示；
 - 文章搜索；
+- 选择本地博客仓库（Chromium File System Access API）；
+- 读取 `src/content/posts`、`content/posts` 或 `posts` 下的 Markdown；
+- 修改后写回本地 Markdown 文件；
 - 预留 GitHub 连接和手动上传入口。
 
 ## 设计目标
