@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Blog Studio
+Comment=Offline-first local blog writing studio
+Exec=blog-studio
+Icon=blog-studio
+Terminal=false
+Type=Application
+Categories=Development;Office;Utility;
+Keywords=Markdown;Blog;Git;GitHub;Writing;

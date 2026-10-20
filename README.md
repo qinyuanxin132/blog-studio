@@ -1,6 +1,6 @@
 # Blog Studio
 
-一个本地优先的博客写作工作台，面向 Windows 和 Linux。
+一个以 Arch Linux 为首要开发和发布平台的本地优先博客写作工作台，同时保留 Windows 兼容路线。
 
 > 当前已经接入 Tauri 2 桌面壳；Web 原型只是开发界面，不是最终产品。
 
@@ -12,7 +12,26 @@ pnpm dev              # 浏览器开发预览
 pnpm desktop:dev      # Tauri 桌面开发模式
 ```
 
-Linux 打包：
+## Arch Linux 优先
+
+Arch Linux 是首要开发、测试和发布平台。当前机器可以直接生成原生二进制：
+
+```bash
+pnpm desktop:dev
+source "$HOME/.cargo/env"
+pnpm exec tauri build --no-bundle
+```
+
+Arch 打包基础文件位于 [packaging/arch](packaging/arch)：
+
+```bash
+cd packaging/arch
+makepkg -si
+```
+
+后续目标是整理为 `blog-studio-git` AUR 包。
+
+其他 Linux 打包：
 
 ```bash
 pnpm exec tauri build --bundles deb,rpm

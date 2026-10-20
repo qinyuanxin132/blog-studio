@@ -1,6 +1,6 @@
 # Blog Studio 任务表
 
-> 目标：做成真正的 Windows/Linux 桌面应用，不依赖浏览器使用；本地优先，用户明确选择后才同步 GitHub。
+> 目标：以 Arch Linux 为首要开发和发布平台，做成真正的桌面应用；同时保留 Windows 兼容路线。本地优先，用户明确选择后才同步 GitHub。
 
 ## 总体优先级
 
@@ -13,8 +13,9 @@
 | P1 | Git 本地操作 | 查看状态、diff、commit | 已完成 |
 | P1 | 手动同步 GitHub | 用户确认后 pull / push，禁止自动上传 | 已完成第一版 |
 | P2 | 冲突处理 | pull 冲突时给出可读提示和解决入口 | 待开发 |
-| P2 | Windows 安装包 | 生成 Windows installer | 待开发 |
-| P2 | Linux 安装包 | AppImage、deb、rpm | deb/rpm 已完成，AppImage 待修复 |
+| P0 | Arch Linux 原生包 | PKGBUILD、makepkg、AUR | PKGBUILD 已准备 |
+| P1 | Linux 安装包 | AppImage、deb、rpm | deb/rpm 已完成，AppImage 待修复 |
+| P2 | Windows 安装包 | 生成 Windows installer | CI 配置已准备 |
 
 ---
 

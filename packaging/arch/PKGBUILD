@@ -1,0 +1,33 @@
+# Maintainer: qinyuanxin132
+pkgname=blog-studio-git
+pkgver=r1
+pkgrel=1
+pkgdesc='Offline-first Tauri desktop blog writing studio'
+arch=('x86_64')
+url='https://github.com/qinyuanxin132/blog-studio'
+license=('MIT')
+depends=('webkit2gtk-4.1' 'libappindicator-gtk3')
+makedepends=('git' 'pnpm' 'rust' 'cargo' 'base-devel')
+provides=('blog-studio')
+conflicts=('blog-studio')
+source=("git+${url}.git")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd "${srcdir}/blog-studio"
+  printf 'r%s.%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+  cd "${srcdir}/blog-studio"
+  pnpm install --frozen-lockfile
+  pnpm exec tauri build --no-bundle
+}
+
+package() {
+  cd "${srcdir}/blog-studio"
+  install -Dm755 src-tauri/target/release/blog-studio "${pkgdir}/usr/bin/blog-studio"
+  install -Dm644 packaging/arch/blog-studio.desktop "${pkgdir}/usr/share/applications/blog-studio.desktop"
+  install -Dm644 src-tauri/icons/128x128.png "${pkgdir}/usr/share/icons/hicolor/128x128/apps/blog-studio.png"
+  install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+}
