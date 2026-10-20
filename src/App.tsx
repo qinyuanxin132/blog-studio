@@ -20,8 +20,9 @@ function parsePost(path: string, body: string, fileHandle: any): Post {
   const titleFromMeta = body.match(/^title:\s*["']?(.+?)["']?\s*$/m)?.[1]
   const titleFromBody = body.match(/^#\s+(.+)$/m)?.[1]
   const date = body.match(/^date:\s*["']?(.+?)["']?\s*$/m)?.[1]
-  const category = body.match(/^(?:category|categories):\s*\[?"?'?([^\]\n,"']+)/m)?.[1]?.trim()
-  const tags = body.match(/^tags:\s*\[?([^\]\n]+)\]?/m)?.[1]?.replace(/["']/g, '').trim()
+  const listMeta = (key: string) => body.match(new RegExp(`^${key}:\\s*\\[([^\\]]*)\\]`, 'm'))?.[1].split(',').map((item) => item.replace(/["']/g, '').trim()).filter(Boolean).join(', ')
+  const category = listMeta('categories') ?? body.match(/^category:\s*["']?(.+?)["']?\s*$/m)?.[1]?.trim()
+  const tags = listMeta('tags')
   const published = !/^published:\s*false\s*$/m.test(body)
   return { id: path, path, fileHandle, title: titleFromMeta ?? titleFromBody ?? path.split('/').pop() ?? '未命名文章', status: published ? 'published' : 'draft', updated: date ?? '本地文件', date, category, tags, body }
 }
@@ -165,7 +166,7 @@ function App() {
     if (!selected) return
     const key = field === 'category' ? 'categories' : field
     const safe = value.replace(/"/g, '\\"')
-    const serialized = field === 'title' ? `"${safe}"` : field === 'category' ? `["${safe}"]` : field === 'tags' ? `[${value.split(',').map((tag) => `"${tag.trim().replace(/"/g, '\\"')}"`).filter(Boolean).join(', ')}]` : value
+    const serialized = field === 'title' ? `"${safe}"` : field === 'category' || field === 'tags' ? `[${value.split(',').map((tag) => `"${tag.trim().replace(/"/g, '\\"')}"`).filter(Boolean).join(', ')}]` : value
     const body = updateFrontmatter(selected.body, key, serialized)
     setPosts((items) => items.map((post) => post.id === selected.id ? { ...post, body, [field]: value, updated: '未保存修改' } : post))
   }
@@ -295,7 +296,7 @@ function App() {
         <div className="metadata-bar" aria-label="文章信息">
           <label>标题<input value={selected?.title ?? ''} onChange={(event) => updateMetadata('title', event.target.value)} /></label>
           <label>日期<input type="date" value={selected?.date ?? ''} onChange={(event) => updateMetadata('date', event.target.value)} /></label>
-          <label>分类<input placeholder="如：逆向工程" value={selected?.category ?? ''} onChange={(event) => updateMetadata('category', event.target.value)} /></label>
+          <label>分类<input placeholder="可用逗号分隔" value={selected?.category ?? ''} onChange={(event) => updateMetadata('category', event.target.value)} /></label>
           <label>标签<input placeholder="逗号分隔" value={selected?.tags ?? ''} onChange={(event) => updateMetadata('tags', event.target.value)} /></label>
         </div>
         <div className="editor-tools" aria-label="格式工具栏">
