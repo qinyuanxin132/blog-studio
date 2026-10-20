@@ -58,7 +58,8 @@ pnpm exec tauri build --bundles deb,rpm
 - [ ] 离线同步队列和冲突提示；
 - [ ] 图片拖拽与资源管理；
 - [x] Tauri 原生保存 Markdown 文件；
-- [ ] Windows 安装包；
+- [x] GitHub Actions Windows/Linux 矩阵构建配置；
+- [ ] Windows 安装包（等待推送到公开仓库后由 CI 生成）；
 - [x] Linux deb / rpm；
 - [ ] Linux AppImage；
 - [ ] GitHub Actions 自动发布 Release。
