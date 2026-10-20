@@ -1,84 +1,157 @@
 # Blog Studio
 
-一个以 Arch Linux 为首要开发和发布平台的本地优先博客写作工作台，同时保留 Windows 兼容路线。
+> A local-first, open-source desktop writing studio for Markdown blogs.
 
-> 当前已经接入 Tauri 2 桌面壳；Web 原型只是开发界面，不是最终产品。
+Blog Studio is a **Tauri 2 desktop application** for Windows and Linux. It is designed for writing without a network connection and synchronizing with Git/GitHub only when the user explicitly chooses to do so.
 
-## 当前原型
+The final product is a native desktop app. The React/Vite frontend is the UI embedded inside the Tauri window, not a hosted web backend.
+
+## Why Blog Studio?
+
+- Write and preview Markdown offline;
+- Edit existing local blog repositories;
+- Use a visual editing mode or Markdown source mode;
+- Insert images from files, drag-and-drop, or clipboard;
+- Review Git status and diff;
+- Create local commits;
+- Pull and push GitHub only after confirmation;
+- Keep the content in ordinary files instead of a proprietary database;
+- Work well on Arch Linux first, while keeping Windows support in the build matrix.
+
+## Quick start on Arch Linux
+
+Install the native dependencies:
 
 ```bash
-pnpm install
-pnpm dev              # 浏览器开发预览
-pnpm desktop:dev      # Tauri 桌面开发模式
+sudo pacman -S --needed \
+  base-devel git nodejs npm rust cargo \
+  webkit2gtk-4.1 libappindicator-gtk3
 ```
 
-## Arch Linux 优先
-
-Arch Linux 是首要开发、测试和发布平台。当前机器可以直接生成原生二进制：
+Clone and start the desktop app:
 
 ```bash
-pnpm desktop:dev
-source "$HOME/.cargo/env"
-pnpm exec tauri build --no-bundle
+git clone https://github.com/qinyuanxin132/blog-studio.git
+cd blog-studio
+npm ci
+npx tauri dev
 ```
 
-Arch 打包基础文件位于 [packaging/arch](packaging/arch)：
+The app opens as a native Tauri window.
+
+## Build Linux packages
+
+Build a native binary:
+
+```bash
+npx tauri build --no-bundle
+./src-tauri/target/release/blog-studio
+```
+
+Build Arch packages through the packaging recipe:
 
 ```bash
 cd packaging/arch
 makepkg -si
 ```
 
-后续目标是整理为 `blog-studio-git` AUR 包。
-
-其他 Linux 打包：
+Build Debian and RPM packages:
 
 ```bash
-pnpm exec tauri build --bundles deb,rpm
+npx tauri build --bundles deb,rpm
 ```
 
-当前已支持：
+## Using the application
 
-- 文章列表；
-- Markdown 编辑；
-- 实时预览；
-- 草稿状态；
-- 本地 LocalStorage 保存；
-- 离线状态展示；
-- 文章搜索；
-- 选择本地博客仓库（Chromium File System Access API）；
-- 读取 `src/content/posts`、`content/posts` 或 `posts` 下的 Markdown；
-- 修改后写回本地 Markdown 文件；
-- Tauri 原生目录选择；
-- Git 状态、diff 统计和本地 commit；
-- 连接或修改 `origin` GitHub 远程地址；
-- 读取远程地址；
-- 用户确认后的 pull；
-- 用户确认后的 push 到 GitHub。
+### 1. Open a local repository
 
-## 设计目标
+Click **打开本地仓库** and select the root of a Git repository containing Markdown posts. Blog Studio looks for these layouts:
 
-- 无网络也能写作和预览；
-- 联网后由用户明确选择是否同步；
-- GitHub 作为远程仓库，不把内容交给第三方数据库；
-- 支持 Windows 和 Linux；
-- MIT 开源；
-- 不自动修改文章正文。
+```text
+src/content/posts/
+content/posts/
+posts/
+```
 
-架构说明见工作区的 [blog-studio-architecture.md](../blog-studio-architecture.md)。
+### 2. Write offline
 
-## Roadmap
+You can edit without network access. Saving writes the Markdown file back to the local repository. The application does not upload automatically.
 
-- [x] Tauri 原生读取本地博客仓库；
-- [x] 接入 Tauri 2 桌面壳；
-- [x] Git 状态、diff、commit；
-- [ ] GitHub OAuth / 安全凭据存储；
-- [x] 手动 pull / push；
-- [ ] 离线同步队列和冲突提示；
-- [ ] 图片拖拽与资源管理；
-- [x] Tauri 原生保存 Markdown 文件；
-- [x] GitHub Actions Windows/Linux 矩阵构建配置；
-- [ ] Windows 安装包（等待推送到公开仓库后由 CI 生成）；
-- [x] Linux deb / rpm；
-- [ ] Linux AppImage；
-- [ ] GitHub Actions 自动发布 Release。
+### 3. Edit metadata
+
+The metadata bar supports:
+
+- title;
+- date;
+- categories;
+- tags.
+
+Metadata is stored in Markdown Front Matter. Editing metadata does not rewrite the article body.
+
+### 4. Insert images
+
+Images can be inserted by:
+
+- clicking the image button;
+- pasting an image with `Ctrl+V`;
+- dragging an image into the editor.
+
+The image is copied into the repository and a Markdown reference is inserted.
+
+### 5. Use Git deliberately
+
+The toolbar exposes:
+
+```text
+Git 状态       inspect branch and local changes
+远程           inspect origin
+连接 GitHub    set or update origin
+本地 commit    create a local commit
+拉取           pull after confirmation
+确认上传       push after confirmation
+```
+
+No network operation is triggered just because the network becomes available.
+
+## Architecture
+
+```text
+React + TypeScript UI
+          ↓
+       Tauri 2
+          ↓
+Rust commands for files, images and Git
+          ↓
+Local Markdown Git repository
+          ↓ user confirmation
+GitHub remote → GitHub Pages / another static host
+```
+
+Important source locations:
+
+```text
+src/App.tsx                         React editor UI
+src/App.css                         desktop editor styling
+src-tauri/src/lib.rs                native file, image and Git commands
+src-tauri/tauri.conf.json           Tauri application configuration
+packaging/arch/PKGBUILD              Arch Linux package recipe
+.github/workflows/build-desktop.yml Windows/Linux CI build matrix
+```
+
+## Project documents
+
+- [Technical architecture](TECHNICAL.md)
+- [User guide](docs/USER_GUIDE.md)
+- [Roadmap](ROADMAP.md)
+- [Contributing](CONTRIBUTING.md)
+- [Arch packaging](packaging/arch/PKGBUILD)
+
+## Privacy and data model
+
+Blog Studio does not require a hosted database. Articles, drafts, images and Git history stay in the local repository until the user commits and pushes them.
+
+Credentials must not be stored in Markdown, ordinary configuration files or logs. GitHub authentication and OS credential storage are tracked as separate roadmap items.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

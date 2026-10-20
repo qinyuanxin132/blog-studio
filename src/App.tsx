@@ -11,8 +11,8 @@ type DirectoryHandle = any
 type EditorMode = 'markdown' | 'visual'
 
 const initialPosts: Post[] = [
-  { id: 'assembly', title: '西电CTF 2026 Assembly', status: 'published', updated: '2026-09-23', date: '2026-09-23', category: '西电CTF_2026', tags: 'Assembly, Reverse', body: '# 西电CTF 2026 Assembly\n\n记录汇编语言学习与逆向分析过程。\n\n## 通用寄存器\n\n从能看懂教程 AI 写的开始。' },
-  { id: 'reverse', title: '逆向学习手记 #3 经验杂谈', status: 'published', updated: '2026-10-11', date: '2026-10-11', category: '逆向入门', tags: 'Reverse', body: '# 逆向学习手记 #3 经验杂谈\n\n把遇到的问题写下来，留给下次阅读。' },
+  { id: 'welcome', title: 'Welcome to Blog Studio', status: 'published', updated: '2026-01-01', date: '2026-01-01', category: 'Notes', tags: 'Getting Started', body: '# Welcome to Blog Studio\n\nThis sample article demonstrates offline editing and preview.\n\n## Start writing\n\nOpen a local Markdown repository to begin.' },
+  { id: 'draft', title: 'Untitled draft', status: 'draft', updated: '2026-01-01', date: '2026-01-01', category: 'Drafts', tags: '', body: '# Untitled draft\n\nStart writing here…' },
   { id: 'new', title: '未命名草稿', status: 'draft', updated: '刚刚', body: '# 未命名草稿\n\n从这里开始写……' },
 ]
 
