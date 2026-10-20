@@ -88,8 +88,11 @@ function App() {
       if ((window as any).__TAURI_INTERNALS__) {
         const selected = await open({ directory: true, multiple: false, title: '选择博客 Git 仓库' })
         if (typeof selected !== 'string') return
-        setRepoPath(selected); setRepoName(selected.split(/[\\/]/).pop() ?? selected)
-        await refreshGit(selected)
+        const loaded = await invoke<Array<{ path: string; body: string }>>('read_posts', { repo: selected })
+        if (!loaded.length) { setMessage('没有找到 Markdown 文章'); return }
+        const nativePosts = loaded.map((post) => parsePost(post.path, post.body, null))
+        setRepoPath(selected); setRepoName(selected.split(/[\\/]/).pop() ?? selected); setPosts(nativePosts); setSelectedId(nativePosts[0].id)
+        await refreshGit(selected); setMessage(`已读取 ${loaded.length} 篇文章`)
         return
       }
       const picker = (window as any).showDirectoryPicker
@@ -112,6 +115,10 @@ function App() {
         const writable = await selected.fileHandle.createWritable()
         await writable.write(selected.body)
         await writable.close()
+        setPosts((items) => items.map((post) => post.id === selected.id ? { ...post, updated: '刚刚' } : post))
+        setMessage(`已保存：${selected.path}`)
+      } else if (repoPath && selected.path && (window as any).__TAURI_INTERNALS__) {
+        await invoke('write_post', { repo: repoPath, relativePath: selected.path, body: selected.body })
         setPosts((items) => items.map((post) => post.id === selected.id ? { ...post, updated: '刚刚' } : post))
         setMessage(`已保存：${selected.path}`)
       } else {
