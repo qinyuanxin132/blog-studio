@@ -7,7 +7,7 @@ arch=('x86_64')
 url='https://github.com/qinyuanxin132/blog-studio'
 license=('MIT')
 depends=('webkit2gtk-4.1' 'libappindicator-gtk3')
-makedepends=('git' 'pnpm' 'rust' 'cargo' 'base-devel')
+makedepends=('git' 'nodejs' 'npm' 'rust' 'cargo' 'base-devel')
 provides=('blog-studio')
 conflicts=('blog-studio')
 source=("git+${url}.git")
@@ -20,8 +20,8 @@ pkgver() {
 
 build() {
   cd "${srcdir}/blog-studio"
-  pnpm install --frozen-lockfile
-  pnpm exec tauri build --no-bundle
+  npm ci
+  npx tauri build --no-bundle
 }
 
 package() {
