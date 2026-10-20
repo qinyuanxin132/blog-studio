@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::{fs, path::{Path, PathBuf}, process::Command};
+use std::{fs, path::{Path, PathBuf}, process::Command, time::{SystemTime, UNIX_EPOCH}};
 
 #[derive(Debug, Serialize)]
 pub struct GitSnapshot {
@@ -15,7 +15,7 @@ pub struct LocalPost {
 }
 
 mod commands {
-  use super::{fs, Command, GitSnapshot, LocalPost, Path, PathBuf};
+  use super::{fs, Command, GitSnapshot, LocalPost, Path, PathBuf, SystemTime, UNIX_EPOCH};
 
   fn run_git(repo: &str, args: &[&str]) -> Result<String, String> {
     let output = Command::new("git")
@@ -70,6 +70,27 @@ mod commands {
   }
 
   #[tauri::command]
+  pub fn copy_image(repo: String, post_path: String, source_path: String) -> Result<String, String> {
+    let source = Path::new(&source_path);
+    let extension = source.extension().and_then(|ext| ext.to_str()).unwrap_or("").to_ascii_lowercase();
+    if !["png", "jpg", "jpeg", "gif", "webp", "svg"].contains(&extension.as_str()) { return Err("只支持 PNG/JPG/GIF/WebP/SVG 图片".into()); }
+    let file_name = source.file_name().and_then(|name| name.to_str()).ok_or("图片文件名无效")?;
+    let repo_root = Path::new(&repo);
+    let asset_dir = if repo_root.join("src/content/attachments/upload").is_dir() { repo_root.join("src/content/attachments/upload") }
+      else if repo_root.join("attachments/upload").is_dir() { repo_root.join("attachments/upload") }
+      else { repo_root.join("public/upload") };
+    fs::create_dir_all(&asset_dir).map_err(|error| error.to_string())?;
+    let mut target = asset_dir.join(file_name);
+    if target.exists() {
+      let stamp = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|error| error.to_string())?.as_secs();
+      target = asset_dir.join(format!("{stamp}-{file_name}"));
+    }
+    fs::copy(source, &target).map_err(|error| error.to_string())?;
+    let _ = post_path;
+    Ok(format!("../attachments/upload/{}", target.file_name().unwrap().to_string_lossy()))
+  }
+
+  #[tauri::command]
   pub fn git_snapshot(repo: String) -> Result<GitSnapshot, String> {
     Ok(GitSnapshot {
       branch: run_git(&repo, &["branch", "--show-current"] )?,
@@ -120,7 +141,7 @@ pub fn run() {
       Ok(())
     })
     .invoke_handler(tauri::generate_handler![
-      commands::read_posts, commands::write_post, commands::git_snapshot, commands::git_diff,
+      commands::read_posts, commands::write_post, commands::copy_image, commands::git_snapshot, commands::git_diff,
       commands::git_commit, commands::git_remote, commands::git_set_remote, commands::git_pull, commands::git_push
     ])
     .run(tauri::generate_context!())

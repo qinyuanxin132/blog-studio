@@ -72,6 +72,7 @@ function htmlToMarkdown(html: string) {
       case 'strong': case 'b': return `**${content}**`
       case 'em': case 'i': return `*${content}*`
       case 'code': return node.parentElement?.tagName.toLowerCase() === 'pre' ? content : `\`${content}\``
+      case 'img': return `![${node.getAttribute('alt') || '图片'}](${node.getAttribute('src') || ''})`
       case 'pre': return '\n```\n' + (node.textContent ?? '') + '\n```\n\n'
       case 'br': return '\\n'
       case 'blockquote': return content.trim().split('\\n').map((line) => `> ${line}`).join('\\n') + '\\n\\n'
@@ -198,6 +199,27 @@ function App() {
   const leaveVisualMode = () => { updateBody(htmlToMarkdown(visualEditorRef.current?.innerHTML ?? visualHtml)); setEditorMode('markdown') }
   const visualInput = (event: FormEvent<HTMLDivElement>) => { const html = event.currentTarget.innerHTML; setVisualHtml(html); updateBody(htmlToMarkdown(html)) }
   const visualFormat = (command: string, value?: string) => { visualEditorRef.current?.focus(); document.execCommand(command, false, value); if (visualEditorRef.current) visualInput({ currentTarget: visualEditorRef.current } as FormEvent<HTMLDivElement>) }
+  const insertMarkdown = (text: string) => {
+    const editor = editorRef.current
+    if (!editor || !selected) return
+    const start = editor.selectionStart
+    const end = editor.selectionEnd
+    const nextBody = `${selected.body.slice(0, start)}${text}${selected.body.slice(end)}`
+    updateBody(nextBody)
+    requestAnimationFrame(() => { editor.focus(); editor.setSelectionRange(start + text.length, start + text.length) })
+  }
+  const insertImage = async () => {
+    if (!repoPath || !selected?.path || !(window as any).__TAURI_INTERNALS__) { setMessage('请先在桌面应用中打开本地博客仓库'); return }
+    const source = await open({ multiple: false, directory: false, title: '选择要插入的图片', filters: [{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] }] })
+    if (typeof source !== 'string') return
+    try {
+      const relative = await invoke<string>('copy_image', { repo: repoPath, postPath: selected.path, sourcePath: source })
+      const markdown = `![图片](${relative})`
+      if (editorMode === 'visual') visualFormat('insertImage', relative)
+      else insertMarkdown(markdown)
+      setMessage(`已导入图片：${relative}`)
+    } catch (error) { setMessage(`图片导入失败：${String(error)}`) }
+  }
   const formatSelection = (before: string, after = '') => {
     const editor = editorRef.current
     if (!editor || !selected) return
@@ -227,7 +249,7 @@ function App() {
           <button className="mode-toggle" onClick={editorMode === 'markdown' ? enterVisualMode : leaveVisualMode}>{editorMode === 'markdown' ? '可视化编辑' : 'Markdown 源码'}</button><span />
           <button title="一级标题" onClick={() => editorMode === 'visual' ? visualFormat('formatBlock', 'h1') : formatSelection('# ')}>H1</button><button title="二级标题" onClick={() => editorMode === 'visual' ? visualFormat('formatBlock', 'h2') : formatSelection('## ')}>H2</button><span />
           <button title="粗体" onClick={() => editorMode === 'visual' ? visualFormat('bold') : formatSelection('**', '**')}><strong>B</strong></button><button title="斜体" onClick={() => editorMode === 'visual' ? visualFormat('italic') : formatSelection('*', '*')}><em>I</em></button><button title="行内代码" onClick={() => formatSelection('`', '`')}>⌘</button><span />
-          <button title="无序列表" onClick={() => editorMode === 'visual' ? visualFormat('insertUnorderedList') : formatSelection('- ')}>☷</button><button title="引用" onClick={() => editorMode === 'visual' ? visualFormat('formatBlock', 'blockquote') : formatSelection('> ')}>❯</button><button title="代码块" onClick={() => formatSelection('```\n', '\n```')}>▣</button>
+          <button title="无序列表" onClick={() => editorMode === 'visual' ? visualFormat('insertUnorderedList') : formatSelection('- ')}>☷</button><button title="引用" onClick={() => editorMode === 'visual' ? visualFormat('formatBlock', 'blockquote') : formatSelection('> ')}>❯</button><button title="代码块" onClick={() => formatSelection('```\n', '\n```')}>▣</button><button title="插入图片" onClick={insertImage}>▧ 图片</button>
         </div>
         <div className={`workbench ${preview ? '' : 'single'}`}>
           {editorMode === 'visual' ? <div ref={visualEditorRef} className="markdown-editor visual-editor" contentEditable suppressContentEditableWarning dangerouslySetInnerHTML={{ __html: visualHtml }} onInput={visualInput} aria-label="可视化文章编辑器" /> : <textarea ref={editorRef} className="markdown-editor" value={selected?.body ?? ''} onChange={(event) => updateBody(event.target.value)} spellCheck={false} aria-label="Markdown 编辑器" />}
