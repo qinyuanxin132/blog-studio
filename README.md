@@ -2,13 +2,20 @@
 
 一个本地优先的博客写作工作台，面向 Windows 和 Linux。
 
-> 当前是第一版 Web 原型，下一步将接入 Tauri 2，打包为 Windows/Linux 桌面应用。
+> 当前已经接入 Tauri 2 桌面壳；Web 原型只是开发界面，不是最终产品。
 
 ## 当前原型
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm dev              # 浏览器开发预览
+pnpm desktop:dev      # Tauri 桌面开发模式
+```
+
+Linux 打包：
+
+```bash
+pnpm desktop:build -- --bundles deb,rpm
 ```
 
 当前已支持：
@@ -38,13 +45,14 @@ npm run dev
 
 ## Roadmap
 
-- [ ] 读取本地博客仓库；
-- [ ] 接入 Tauri 2 桌面壳；
+- [x] 读取本地博客仓库；
+- [x] 接入 Tauri 2 桌面壳；
 - [ ] Git 状态、diff、commit；
 - [ ] GitHub OAuth / 安全凭据存储；
 - [ ] 手动 pull / push；
 - [ ] 离线同步队列和冲突提示；
 - [ ] 图片拖拽与资源管理；
 - [ ] Windows 安装包；
-- [ ] Linux AppImage / deb；
+- [x] Linux deb / rpm；
+- [ ] Linux AppImage；
 - [ ] GitHub Actions 自动发布 Release。
