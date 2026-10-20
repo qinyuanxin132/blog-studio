@@ -54,6 +54,20 @@ mod commands {
   }
 
   #[tauri::command]
+  pub fn git_set_remote(repo: String, url: String) -> Result<String, String> {
+    let url = url.trim();
+    if url.is_empty() {
+      return Err("远程地址不能为空".into());
+    }
+    let existing = run_git(&repo, &["remote"])?;
+    if existing.lines().any(|name| name.trim() == "origin") {
+      run_git(&repo, &["remote", "set-url", "origin", url])
+    } else {
+      run_git(&repo, &["remote", "add", "origin", url])
+    }
+  }
+
+  #[tauri::command]
   pub fn git_pull(repo: String) -> Result<String, String> {
     run_git(&repo, &["pull", "--ff-only"])
   }
@@ -78,7 +92,7 @@ pub fn run() {
       }
       Ok(())
     })
-    .invoke_handler(tauri::generate_handler![commands::git_snapshot, commands::git_diff, commands::git_commit, commands::git_remote, commands::git_pull, commands::git_push])
+    .invoke_handler(tauri::generate_handler![commands::git_snapshot, commands::git_diff, commands::git_commit, commands::git_remote, commands::git_set_remote, commands::git_pull, commands::git_push])
     .run(tauri::generate_context!())
     .expect("error while building tauri application");
 }

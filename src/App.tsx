@@ -135,6 +135,12 @@ function App() {
     if (!repoPath || !(window as any).__TAURI_INTERNALS__) { setMessage('请先打开本地 Git 仓库'); return }
     try { setRemote(await invoke<string>('git_remote', { repo: repoPath })); setMessage('已读取远程仓库') } catch (error) { setMessage(`读取远程失败：${String(error)}`) }
   }
+  const connectRemote = async () => {
+    if (!repoPath || !(window as any).__TAURI_INTERNALS__) { setMessage('请先打开本地 Git 仓库'); return }
+    const url = window.prompt('输入 GitHub 仓库 HTTPS 或 SSH 地址', remote || 'https://github.com/用户名/仓库.git')
+    if (!url) return
+    try { await invoke('git_set_remote', { repo: repoPath, url }); await loadRemote(); setMessage('已连接 GitHub 远程仓库') } catch (error) { setMessage(`连接远程失败：${String(error)}`) }
+  }
   const pullRemote = async () => {
     if (!repoPath || !window.confirm('拉取远程会改变本地文件，确定继续吗？')) return
     try { setMessage('正在拉取远程…'); await invoke('git_pull', { repo: repoPath }); await refreshGit(); setMessage('拉取完成，未上传本地修改') } catch (error) { setMessage(`拉取失败：${String(error)}`) }
@@ -162,7 +168,7 @@ function App() {
         <div className="post-items">{filtered.map((post) => <button key={post.id} className={`post-item ${post.id === selected?.id ? 'selected' : ''}`} onClick={() => setSelectedId(post.id)}><span className="post-item-title">{post.title}</span><span><i className={post.status} />{post.updated}</span></button>)}</div>
       </aside>
       <main className="editor-area">
-        <div className="editor-toolbar"><div><span className="crumb">{selected?.path ?? '本地草稿'}</span><strong>{selected?.title}</strong></div><div className="toolbar-actions"><span className="saved">● {message}{gitSnapshot?.branch ? ` · ${gitSnapshot.branch}` : ''}</span><button onClick={() => setPreview(!preview)}>{preview ? '隐藏预览' : '显示预览'}</button><button onClick={saveSelected}>保存本地</button><button onClick={() => refreshGit()}>Git 状态</button><button onClick={loadRemote}>远程</button><button onClick={commitLocal}>本地 commit</button><button onClick={pullRemote}>拉取</button><button className="publish" onClick={pushRemote}>确认上传</button></div></div>
+        <div className="editor-toolbar"><div><span className="crumb">{selected?.path ?? '本地草稿'}</span><strong>{selected?.title}</strong></div><div className="toolbar-actions"><span className="saved">● {message}{gitSnapshot?.branch ? ` · ${gitSnapshot.branch}` : ''}</span><button onClick={() => setPreview(!preview)}>{preview ? '隐藏预览' : '显示预览'}</button><button onClick={saveSelected}>保存本地</button><button onClick={() => refreshGit()}>Git 状态</button><button onClick={loadRemote}>远程</button><button onClick={connectRemote}>连接 GitHub</button><button onClick={commitLocal}>本地 commit</button><button onClick={pullRemote}>拉取</button><button className="publish" onClick={pushRemote}>确认上传</button></div></div>
         <div className={`workbench ${preview ? '' : 'single'}`}>
           <textarea className="markdown-editor" value={selected?.body ?? ''} onChange={(event) => updateBody(event.target.value)} spellCheck={false} aria-label="Markdown 编辑器" />
           {preview && <article className="markdown-preview" dangerouslySetInnerHTML={{ __html: renderMarkdown(selected?.body ?? '') }} />}
