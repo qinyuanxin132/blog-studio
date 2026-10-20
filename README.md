@@ -32,7 +32,9 @@ pnpm exec tauri build --bundles deb,rpm
 - 修改后写回本地 Markdown 文件；
 - Tauri 原生目录选择；
 - Git 状态、diff 统计和本地 commit；
-- GitHub 连接和手动上传入口（下一阶段接入）。
+- 读取远程地址；
+- 用户确认后的 pull；
+- 用户确认后的 push 到 GitHub。
 
 ## 设计目标
 
@@ -51,7 +53,7 @@ pnpm exec tauri build --bundles deb,rpm
 - [x] 接入 Tauri 2 桌面壳；
 - [x] Git 状态、diff、commit；
 - [ ] GitHub OAuth / 安全凭据存储；
-- [ ] 手动 pull / push；
+- [x] 手动 pull / push；
 - [ ] 离线同步队列和冲突提示；
 - [ ] 图片拖拽与资源管理；
 - [ ] Windows 安装包；
