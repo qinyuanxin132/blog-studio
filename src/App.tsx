@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { invoke } from '@tauri-apps/api/core'
+import { open } from '@tauri-apps/plugin-dialog'
 import './App.css'
 
 type Post = { id: string; title: string; status: 'draft' | 'published'; updated: string; body: string; path?: string; fileHandle?: any }
@@ -62,15 +64,33 @@ function App() {
   const [query, setQuery] = useState('')
   const [preview, setPreview] = useState(true)
   const [repo, setRepo] = useState<DirectoryHandle>(null)
+  const [repoPath, setRepoPath] = useState('')
   const [repoName, setRepoName] = useState('未连接本地仓库')
+  const [gitSnapshot, setGitSnapshot] = useState<{ branch: string; status: string; diffStat: string } | null>(null)
   const [message, setMessage] = useState('离线模式')
   const selected = posts.find((post) => post.id === selectedId) ?? posts[0]
   const filtered = useMemo(() => posts.filter((post) => post.title.toLowerCase().includes(query.toLowerCase())), [posts, query])
 
   useEffect(() => { if (!repo) localStorage.setItem('blog-studio-demo-posts', JSON.stringify(posts)) }, [posts, repo])
 
+  const refreshGit = async (path = repoPath) => {
+    if (!path || !(window as any).__TAURI_INTERNALS__) return
+    try {
+      const snapshot = await invoke<{ branch: string; status: string; diff_stat: string }>('git_snapshot', { repo: path })
+      setGitSnapshot({ branch: snapshot.branch, status: snapshot.status, diffStat: snapshot.diff_stat })
+      setMessage(snapshot.status ? '有未提交修改' : '工作区干净')
+    } catch { setMessage('读取 Git 状态失败，请确认目录是 Git 仓库') }
+  }
+
   const openRepository = async () => {
     try {
+      if ((window as any).__TAURI_INTERNALS__) {
+        const selected = await open({ directory: true, multiple: false, title: '选择博客 Git 仓库' })
+        if (typeof selected !== 'string') return
+        setRepoPath(selected); setRepoName(selected.split(/[\\/]/).pop() ?? selected)
+        await refreshGit(selected)
+        return
+      }
       const picker = (window as any).showDirectoryPicker
       if (!picker) { setMessage('当前浏览器不支持本地目录访问，请使用 Chrome/Edge'); return }
       const handle = await picker({ mode: 'readwrite' })
@@ -99,6 +119,17 @@ function App() {
       }
     } catch { setMessage('保存失败：请重新授权本地目录') }
   }
+  const commitLocal = async () => {
+    if (!repoPath || !(window as any).__TAURI_INTERNALS__) { setMessage('请先在桌面应用中打开本地 Git 仓库'); return }
+    const message = window.prompt('本次提交说明', '更新博客文章')
+    if (!message) return
+    try {
+      await invoke('git_commit', { repo: repoPath, message })
+      await refreshGit()
+      setMessage('已创建本地 commit，尚未上传')
+    } catch (error) { setMessage(`commit 失败：${String(error)}`) }
+  }
+
   const newPost = () => {
     const post: Post = { id: `draft-${Date.now()}`, title: '未命名草稿', status: 'draft', updated: '未保存修改', body: '# 未命名草稿\n\n' }
     setPosts((items) => [post, ...items]); setSelectedId(post.id); setMessage('新建本地草稿')
@@ -117,7 +148,7 @@ function App() {
         <div className="post-items">{filtered.map((post) => <button key={post.id} className={`post-item ${post.id === selected?.id ? 'selected' : ''}`} onClick={() => setSelectedId(post.id)}><span className="post-item-title">{post.title}</span><span><i className={post.status} />{post.updated}</span></button>)}</div>
       </aside>
       <main className="editor-area">
-        <div className="editor-toolbar"><div><span className="crumb">{selected?.path ?? '本地草稿'}</span><strong>{selected?.title}</strong></div><div className="toolbar-actions"><span className="saved">● {message}</span><button onClick={() => setPreview(!preview)}>{preview ? '隐藏预览' : '显示预览'}</button><button onClick={saveSelected}>保存本地</button><button className="publish" onClick={() => setMessage('上传功能将在 GitHub 连接模块中启用')}>选择上传</button></div></div>
+        <div className="editor-toolbar"><div><span className="crumb">{selected?.path ?? '本地草稿'}</span><strong>{selected?.title}</strong></div><div className="toolbar-actions"><span className="saved">● {message}{gitSnapshot?.branch ? ` · ${gitSnapshot.branch}` : ''}</span><button onClick={() => setPreview(!preview)}>{preview ? '隐藏预览' : '显示预览'}</button><button onClick={saveSelected}>保存本地</button><button onClick={() => refreshGit()}>Git 状态</button><button onClick={commitLocal}>本地 commit</button><button className="publish" onClick={() => setMessage('上传功能将在 GitHub 连接模块中启用')}>选择上传</button></div></div>
         <div className={`workbench ${preview ? '' : 'single'}`}>
           <textarea className="markdown-editor" value={selected?.body ?? ''} onChange={(event) => updateBody(event.target.value)} spellCheck={false} aria-label="Markdown 编辑器" />
           {preview && <article className="markdown-preview" dangerouslySetInnerHTML={{ __html: renderMarkdown(selected?.body ?? '') }} />}
