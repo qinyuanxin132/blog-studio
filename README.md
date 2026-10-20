@@ -15,7 +15,7 @@ pnpm desktop:dev      # Tauri 桌面开发模式
 Linux 打包：
 
 ```bash
-pnpm desktop:build -- --bundles deb,rpm
+pnpm exec tauri build --bundles deb,rpm
 ```
 
 当前已支持：
@@ -30,7 +30,9 @@ pnpm desktop:build -- --bundles deb,rpm
 - 选择本地博客仓库（Chromium File System Access API）；
 - 读取 `src/content/posts`、`content/posts` 或 `posts` 下的 Markdown；
 - 修改后写回本地 Markdown 文件；
-- 预留 GitHub 连接和手动上传入口。
+- Tauri 原生目录选择；
+- Git 状态、diff 统计和本地 commit；
+- GitHub 连接和手动上传入口（下一阶段接入）。
 
 ## 设计目标
 
@@ -47,7 +49,7 @@ pnpm desktop:build -- --bundles deb,rpm
 
 - [x] 读取本地博客仓库；
 - [x] 接入 Tauri 2 桌面壳；
-- [ ] Git 状态、diff、commit；
+- [x] Git 状态、diff、commit；
 - [ ] GitHub OAuth / 安全凭据存储；
 - [ ] 手动 pull / push；
 - [ ] 离线同步队列和冲突提示；
