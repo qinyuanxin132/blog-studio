@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import './App.css'
@@ -70,6 +70,7 @@ function App() {
   const [remote, setRemote] = useState('')
   const [message, setMessage] = useState('离线模式')
   const selected = posts.find((post) => post.id === selectedId) ?? posts[0]
+  const editorRef = useRef<HTMLTextAreaElement>(null)
   const filtered = useMemo(() => posts.filter((post) => post.title.toLowerCase().includes(query.toLowerCase())), [posts, query])
 
   useEffect(() => { if (!repo) localStorage.setItem('blog-studio-demo-posts', JSON.stringify(posts)) }, [posts, repo])
@@ -161,6 +162,16 @@ function App() {
     const post: Post = { id: `draft-${Date.now()}`, title: '未命名草稿', status: 'draft', updated: '未保存修改', body: '# 未命名草稿\n\n' }
     setPosts((items) => [post, ...items]); setSelectedId(post.id); setMessage('新建本地草稿')
   }
+  const formatSelection = (before: string, after = '') => {
+    const editor = editorRef.current
+    if (!editor || !selected) return
+    const start = editor.selectionStart
+    const end = editor.selectionEnd
+    const selectedText = selected.body.slice(start, end) || '文字'
+    const nextBody = `${selected.body.slice(0, start)}${before}${selectedText}${after}${selected.body.slice(end)}`
+    updateBody(nextBody)
+    requestAnimationFrame(() => { editor.focus(); editor.setSelectionRange(start + before.length, start + before.length + selectedText.length) })
+  }
 
   return <div className="studio-shell">
     <header className="studio-header">
@@ -176,8 +187,13 @@ function App() {
       </aside>
       <main className="editor-area">
         <div className="editor-toolbar"><div><span className="crumb">{selected?.path ?? '本地草稿'}</span><strong>{selected?.title}</strong></div><div className="toolbar-actions"><span className="saved">● {message}{gitSnapshot?.branch ? ` · ${gitSnapshot.branch}` : ''}</span><button onClick={() => setPreview(!preview)}>{preview ? '隐藏预览' : '显示预览'}</button><button onClick={saveSelected}>保存本地</button><button onClick={() => refreshGit()}>Git 状态</button><button onClick={loadRemote}>远程</button><button onClick={connectRemote}>连接 GitHub</button><button onClick={commitLocal}>本地 commit</button><button onClick={pullRemote}>拉取</button><button className="publish" onClick={pushRemote}>确认上传</button></div></div>
+        <div className="editor-tools" aria-label="格式工具栏">
+          <button title="一级标题" onClick={() => formatSelection('# ')}>H1</button><button title="二级标题" onClick={() => formatSelection('## ')}>H2</button><span />
+          <button title="粗体" onClick={() => formatSelection('**', '**')}><strong>B</strong></button><button title="斜体" onClick={() => formatSelection('*', '*')}><em>I</em></button><button title="行内代码" onClick={() => formatSelection('`', '`')}>⌘</button><span />
+          <button title="无序列表" onClick={() => formatSelection('- ')}>☷</button><button title="引用" onClick={() => formatSelection('> ')}>❯</button><button title="代码块" onClick={() => formatSelection('```\n', '\n```')}>▣</button>
+        </div>
         <div className={`workbench ${preview ? '' : 'single'}`}>
-          <textarea className="markdown-editor" value={selected?.body ?? ''} onChange={(event) => updateBody(event.target.value)} spellCheck={false} aria-label="Markdown 编辑器" />
+          <textarea ref={editorRef} className="markdown-editor" value={selected?.body ?? ''} onChange={(event) => updateBody(event.target.value)} spellCheck={false} aria-label="Markdown 编辑器" />
           {preview && <article className="markdown-preview" dangerouslySetInnerHTML={{ __html: renderMarkdown(selected?.body ?? '') }} />}
         </div>
       </main>
