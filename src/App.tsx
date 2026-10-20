@@ -67,6 +67,7 @@ function App() {
   const [repoPath, setRepoPath] = useState('')
   const [repoName, setRepoName] = useState('未连接本地仓库')
   const [gitSnapshot, setGitSnapshot] = useState<{ branch: string; status: string; diffStat: string } | null>(null)
+  const [remote, setRemote] = useState('')
   const [message, setMessage] = useState('离线模式')
   const selected = posts.find((post) => post.id === selectedId) ?? posts[0]
   const filtered = useMemo(() => posts.filter((post) => post.title.toLowerCase().includes(query.toLowerCase())), [posts, query])
@@ -130,6 +131,19 @@ function App() {
     } catch (error) { setMessage(`commit 失败：${String(error)}`) }
   }
 
+  const loadRemote = async () => {
+    if (!repoPath || !(window as any).__TAURI_INTERNALS__) { setMessage('请先打开本地 Git 仓库'); return }
+    try { setRemote(await invoke<string>('git_remote', { repo: repoPath })); setMessage('已读取远程仓库') } catch (error) { setMessage(`读取远程失败：${String(error)}`) }
+  }
+  const pullRemote = async () => {
+    if (!repoPath || !window.confirm('拉取远程会改变本地文件，确定继续吗？')) return
+    try { setMessage('正在拉取远程…'); await invoke('git_pull', { repo: repoPath }); await refreshGit(); setMessage('拉取完成，未上传本地修改') } catch (error) { setMessage(`拉取失败：${String(error)}`) }
+  }
+  const pushRemote = async () => {
+    if (!repoPath || !window.confirm('这会把本地 commit 上传到远程 GitHub，确定继续吗？')) return
+    try { setMessage('正在上传 GitHub…'); await invoke('git_push', { repo: repoPath }); await refreshGit(); setMessage('已上传到 GitHub') } catch (error) { setMessage(`上传失败：${String(error)}`) }
+  }
+
   const newPost = () => {
     const post: Post = { id: `draft-${Date.now()}`, title: '未命名草稿', status: 'draft', updated: '未保存修改', body: '# 未命名草稿\n\n' }
     setPosts((items) => [post, ...items]); setSelectedId(post.id); setMessage('新建本地草稿')
@@ -138,7 +152,7 @@ function App() {
   return <div className="studio-shell">
     <header className="studio-header">
       <div className="studio-brand"><span className="studio-mark">B</span><div><strong>Blog Studio</strong><small>离线优先写作台</small></div></div>
-      <div className="sync-state"><span className="offline-dot" />{repoName}<button onClick={openRepository}>打开本地仓库</button></div>
+      <div className="sync-state"><span className="offline-dot" />{repoName}{remote && <span className="remote-label" title={remote}>↗ {remote.split('\n')[0]}</span>}<button onClick={openRepository}>打开本地仓库</button></div>
     </header>
     <div className="studio-body">
       <aside className="post-sidebar">
@@ -148,7 +162,7 @@ function App() {
         <div className="post-items">{filtered.map((post) => <button key={post.id} className={`post-item ${post.id === selected?.id ? 'selected' : ''}`} onClick={() => setSelectedId(post.id)}><span className="post-item-title">{post.title}</span><span><i className={post.status} />{post.updated}</span></button>)}</div>
       </aside>
       <main className="editor-area">
-        <div className="editor-toolbar"><div><span className="crumb">{selected?.path ?? '本地草稿'}</span><strong>{selected?.title}</strong></div><div className="toolbar-actions"><span className="saved">● {message}{gitSnapshot?.branch ? ` · ${gitSnapshot.branch}` : ''}</span><button onClick={() => setPreview(!preview)}>{preview ? '隐藏预览' : '显示预览'}</button><button onClick={saveSelected}>保存本地</button><button onClick={() => refreshGit()}>Git 状态</button><button onClick={commitLocal}>本地 commit</button><button className="publish" onClick={() => setMessage('上传功能将在 GitHub 连接模块中启用')}>选择上传</button></div></div>
+        <div className="editor-toolbar"><div><span className="crumb">{selected?.path ?? '本地草稿'}</span><strong>{selected?.title}</strong></div><div className="toolbar-actions"><span className="saved">● {message}{gitSnapshot?.branch ? ` · ${gitSnapshot.branch}` : ''}</span><button onClick={() => setPreview(!preview)}>{preview ? '隐藏预览' : '显示预览'}</button><button onClick={saveSelected}>保存本地</button><button onClick={() => refreshGit()}>Git 状态</button><button onClick={loadRemote}>远程</button><button onClick={commitLocal}>本地 commit</button><button onClick={pullRemote}>拉取</button><button className="publish" onClick={pushRemote}>确认上传</button></div></div>
         <div className={`workbench ${preview ? '' : 'single'}`}>
           <textarea className="markdown-editor" value={selected?.body ?? ''} onChange={(event) => updateBody(event.target.value)} spellCheck={false} aria-label="Markdown 编辑器" />
           {preview && <article className="markdown-preview" dangerouslySetInnerHTML={{ __html: renderMarkdown(selected?.body ?? '') }} />}

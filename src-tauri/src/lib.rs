@@ -47,6 +47,21 @@ mod commands {
     run_git(&repo, &["add", "-A"])?;
     run_git(&repo, &["commit", "-m", message])
   }
+
+  #[tauri::command]
+  pub fn git_remote(repo: String) -> Result<String, String> {
+    run_git(&repo, &["remote", "-v"])
+  }
+
+  #[tauri::command]
+  pub fn git_pull(repo: String) -> Result<String, String> {
+    run_git(&repo, &["pull", "--ff-only"])
+  }
+
+  #[tauri::command]
+  pub fn git_push(repo: String) -> Result<String, String> {
+    run_git(&repo, &["push"])
+  }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -63,7 +78,7 @@ pub fn run() {
       }
       Ok(())
     })
-    .invoke_handler(tauri::generate_handler![commands::git_snapshot, commands::git_diff, commands::git_commit])
+    .invoke_handler(tauri::generate_handler![commands::git_snapshot, commands::git_diff, commands::git_commit, commands::git_remote, commands::git_pull, commands::git_push])
     .run(tauri::generate_context!())
     .expect("error while building tauri application");
 }
